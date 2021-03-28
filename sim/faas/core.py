@@ -1,6 +1,8 @@
 import abc
 import enum
 import logging
+import random
+import numpy as np
 from collections import defaultdict
 from typing import List, Dict, NamedTuple, Optional
 
@@ -213,18 +215,40 @@ class FunctionReplica:
     simulator: 'FunctionSimulator' = None
 
 
+class FunctionMapping:
+    def __init__(self, func_name, hash_input):
+        self.func_name = func_name
+        self.hash_input = hash_input
+
+    def __hash__(self):
+        return hash(self.func_name) + hash(self.hash_input)
+
+    def __eq__(self, other):
+        if isinstance(other, FunctionMapping) and hash(other) == hash(self):
+            return True
+        return False
+
+    def get_hash_output(self):
+        return self.__hash__()
+
+
 class FunctionRequest:
     request_id: int
     name: str
     size: float = None
+    map_function: FunctionMapping
 
     id_generator = counter()
+    request_paramters: str
+    paramter_generator = np.random.normal(10, 100, 1000)
 
     def __init__(self, name, size=None) -> None:
         super().__init__()
         self.name = name
         self.size = size
         self.request_id = next(self.id_generator)
+        self.request_paramters = random.choice(self.paramter_generator)
+        self.map_function = FunctionMapping(name, hash(self.request_paramters))
 
     def __str__(self) -> str:
         return 'FunctionRequest(%d, %s, %s)' % (self.request_id, self.name, self.size)

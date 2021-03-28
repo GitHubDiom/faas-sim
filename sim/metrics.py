@@ -74,6 +74,12 @@ class Metrics:
     def log_scaling(self, function_name, replicas):
         self.log('scale', replicas, function_name=function_name)
 
+    def log_cache(self, function_deployment, function_name, node_name, replica_id, hit_status):
+        self.log("funcOutPutDataCache", {"hit": hit_status},
+                 function_deployment=function_deployment,
+                 function_name=function_name, node=node_name, replica_id=replica_id
+                 )
+
     def log_invocation(self, function_deployment, function_name, node_name, t_wait, t_start, t_exec, replica_id):
         function = self.env.faas.get_function_index()[function_name]
         mem = function.get_resource_requirements().get('memory')

@@ -45,6 +45,9 @@ class DefaultFaasSystem(FaasSystem):
         self.queue_faas_scalers: Dict[str, AverageQueueFaasRequestScaler] = dict()
         self.replica_count: Dict[str, int] = dict()
         self.functions_definitions = Counter()
+        self.hash_output_store_way = "centralized" or "distributed"
+        self.cached_hash_outputs = list()  # centralized
+        # self.cache_hash_outputs = defaultdict(list) #  distributed
 
     def get_deployments(self) -> List[FunctionDeployment]:
         return list(self.functions_deployments.values())
@@ -128,14 +131,20 @@ class DefaultFaasSystem(FaasSystem):
         logger.debug('dispatching request %s:%d to %s', request.name, request.request_id, replica.node.name)
 
         t_start = self.env.now
-        yield from simulate_function_invocation(self.env, replica, request)
+        is_hit = False
+        if self.env.func_output_cache and data_hit(request, self.cached_hash_outputs):
+            # function hit
+            is_hit = True
+        else:
+            yield from simulate_function_invocation(self.env, replica, request, self.cached_hash_outputs)
+            t_end = self.env.now
 
-        t_end = self.env.now
+            t_wait = t_start - t_received
+            t_exec = t_end - t_start
+            self.env.metrics.log_invocation(request.name, replica.function.image, replica.node.name, t_wait, t_start,
+                                            t_exec, id(replica))
+        self.env.metrics.log_cache(request.name, replica.function.image, replica.node.name, id(replica), is_hit)
 
-        t_wait = t_start - t_received
-        t_exec = t_end - t_start
-        self.env.metrics.log_invocation(request.name, replica.function.image, replica.node.name, t_wait, t_start,
-                                        t_exec, id(replica))
 
     def remove(self, fn: FunctionDeployment):
         self.env.metrics.log_function_deployment_lifecycle(fn, 'remove')
@@ -393,7 +402,13 @@ def simulate_data_upload(env: Environment, replica: FunctionReplica):
     env.metrics.log_flow(size, env.now - started, route.source, route.destination, 'data_upload')
 
 
-def simulate_function_invocation(env: Environment, replica: FunctionReplica, request: FunctionRequest):
+def store_hash_output(cached_hash_outputs, requst: FunctionRequest):
+    cached_hash_outputs.append(requst.map_function.get_hash_output())
+    # TODO Selects a store index.
+
+
+def simulate_function_invocation(env: Environment, replica: FunctionReplica, request: FunctionRequest,
+                                 cached_hash_outputs):
     node = replica.node
 
     node.current_requests.add(request)
@@ -403,3 +418,9 @@ def simulate_function_invocation(env: Environment, replica: FunctionReplica, req
 
     env.metrics.log_stop_exec(request, replica)
     node.current_requests.remove(request)
+    if env.func_output_cache:
+        store_hash_output(cached_hash_outputs, request)
+
+
+def data_hit(request: FunctionRequest, cached_hash_outputs):
+    return request.map_function.get_hash_output() in cached_hash_outputs

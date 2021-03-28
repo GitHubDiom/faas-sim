@@ -203,7 +203,7 @@ class Environment(simpy.Environment):
     cluster: 'SimulationClusterContext'
     faas: 'FaasSystem'
 
-    def __init__(self, initial_time=0):
+    def __init__(self, initial_time=0, func_output_cache=False):
         super().__init__(initial_time)
         self.faas = None
         self.simulator_factory = None
@@ -218,6 +218,7 @@ class Environment(simpy.Environment):
         self.metrics_server = None
         self.background_processes: List[Callable[[Environment], Generator[simpy.events.Event, Any, Any]]] = []
         self.degradation_models: Dict[str, Optional[RegressorMixin]] = {}
+        self.func_output_cache = func_output_cache
 
     def get_node_state(self, name: str) -> Optional[NodeState]:
         """

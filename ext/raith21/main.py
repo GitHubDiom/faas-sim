@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 import logging
+import os
 import random
 
 import numpy as np
@@ -28,71 +29,87 @@ from sim.logging import SimulatedClock, RuntimeLogger
 from sim.metrics import Metrics
 from sim.skippy import SimulationClusterContext
 
-np.random.seed(1234)
-random.seed(1234)
-logging.basicConfig(level=logging.INFO)
 
-num_devices = 100
-devices = generate_devices(num_devices, cloudcpu_settings)
-ether_nodes = convert_to_ether_nodes(devices)
+def main(model):
+    np.random.seed(1234)
+    random.seed(1234)
+    logging.basicConfig(level=logging.DEBUG,
+                        filemode='w',
+                        filename='/tmp/faas_sim/log_raith21.log')
 
-fet_oracle = Raith21FetOracle(ai_execution_time_distributions)
-resource_oracle = Raith21ResourceOracle(ai_resources_per_node_image)
+    num_devices = 100
+    devices = generate_devices(num_devices, cloudcpu_settings)
+    ether_nodes = convert_to_ether_nodes(devices)
 
-deployments = list(create_all_deployments(fet_oracle, resource_oracle).values())
-function_images = images.all_ai_images
+    fet_oracle = Raith21FetOracle(ai_execution_time_distributions)
+    resource_oracle = Raith21ResourceOracle(ai_resources_per_node_image)
 
-predicates = []
-predicates.extend(Scheduler.default_predicates)
-predicates.extend([
-    CanRunPred(fet_oracle, resource_oracle),
-    NodeHasAcceleratorPred(),
-    NodeHasFreeGpu(),
-    NodeHasFreeTpu()
-])
+    deployments = list(create_all_deployments(fet_oracle, resource_oracle).values())
+    function_images = images.all_ai_images
 
-priorities = vanilla.get_priorities()
+    predicates = []
+    predicates.extend(Scheduler.default_predicates)
+    predicates.extend([
+        CanRunPred(fet_oracle, resource_oracle),
+        NodeHasAcceleratorPred(),
+        NodeHasFreeGpu(),
+        NodeHasFreeTpu()
+    ])
 
-sched_params = {
-    'percentage_of_nodes_to_score': 100,
-    'priorities': priorities,
-    'predicates': predicates
-}
+    priorities = vanilla.get_priorities()
 
-# Set arrival profiles/workload pattern
-benchmark = ConstantBenchmark('mixed', duration=200, rps=50)
+    sched_params = {
+        'percentage_of_nodes_to_score': 100,
+        'priorities': priorities,
+        'predicates': predicates
+    }
 
-# Initialize topology
-storage_index = StorageIndex()
-topology = urban_sensing_topology(ether_nodes, storage_index)
+    # Set arrival profiles/workload pattern
+    benchmark = ConstantBenchmark('mixed', duration=200, rps=50)
 
-# Initialize environment
-env = Environment()
+    # Initialize topology
+    storage_index = StorageIndex()
+    topology = urban_sensing_topology(ether_nodes, storage_index)
+    function_output_cache_enable = True if model == 'cache' else False
+    # Initialize environment
+    env = Environment(func_output_cache=function_output_cache_enable)
 
-env.simulator_factory = AIPythonHTTPSimulatorFactory()
-env.metrics = Metrics(env, log=RuntimeLogger(SimulatedClock(env)))
-env.topology = topology
-env.faas = DefaultFaasSystem(env, scale_by_requests=True)
-env.container_registry = ContainerRegistry()
-env.storage_index = storage_index
-env.cluster = SimulationClusterContext(env)
-env.scheduler = Scheduler(env.cluster, **sched_params)
+    env.simulator_factory = AIPythonHTTPSimulatorFactory()
+    env.metrics = Metrics(env, log=RuntimeLogger(SimulatedClock(env)))
+    env.topology = topology
+    env.faas = DefaultFaasSystem(env, scale_by_requests=True)
+    env.container_registry = ContainerRegistry()
+    env.storage_index = storage_index
+    env.cluster = SimulationClusterContext(env)
+    env.scheduler = Scheduler(env.cluster, **sched_params)
 
-sim = Simulation(env.topology, benchmark, env=env)
-result = sim.run()
+    sim = Simulation(env.topology, benchmark, env=env)
+    result = sim.run()
 
-dfs = {
-    "invocations_df": sim.env.metrics.extract_dataframe('invocations'),
-    "scale_df": sim.env.metrics.extract_dataframe('scale'),
-    "schedule_df": sim.env.metrics.extract_dataframe('schedule'),
-    "replica_deployment_df": sim.env.metrics.extract_dataframe('replica_deployment'),
-    "function_deployments_df": sim.env.metrics.extract_dataframe('function_deployments'),
-    "function_deployment_df": sim.env.metrics.extract_dataframe('function_deployment'),
-    "function_deployment_lifecycle_df": sim.env.metrics.extract_dataframe('function_deployment_lifecycle'),
-    "functions_df": sim.env.metrics.extract_dataframe('functions'),
-    "flow_df": sim.env.metrics.extract_dataframe('flow'),
-    "network_df": sim.env.metrics.extract_dataframe('network'),
-    "utilization_df": sim.env.metrics.extract_dataframe('utilization'),
-    'fets_df': sim.env.metrics.extract_dataframe('fets')
-}
-print(len(dfs))
+    dfs = {
+        "invocations_df": sim.env.metrics.extract_dataframe('invocations'),
+        "scale_df": sim.env.metrics.extract_dataframe('scale'),
+        "schedule_df": sim.env.metrics.extract_dataframe('schedule'),
+        "replica_deployment_df": sim.env.metrics.extract_dataframe('replica_deployment'),
+        "function_deployments_df": sim.env.metrics.extract_dataframe('function_deployments'),
+        "function_deployment_df": sim.env.metrics.extract_dataframe('function_deployment'),
+        "function_deployment_lifecycle_df": sim.env.metrics.extract_dataframe('function_deployment_lifecycle'),
+        "functions_df": sim.env.metrics.extract_dataframe('functions'),
+        "flow_df": sim.env.metrics.extract_dataframe('flow'),
+        "network_df": sim.env.metrics.extract_dataframe('network'),
+        "utilization_df": sim.env.metrics.extract_dataframe('utilization'),
+        'fets_df': sim.env.metrics.extract_dataframe('fets'),
+        "cache_df": sim.env.metrics.extract_dataframe("funcOutPutDataCache")
+    }
+
+    csv_file_dir = '/tmp/faas_sim/'
+    if not os.path.exists(csv_file_dir):
+        os.mkdir(csv_file_dir)
+    for df_name, df in dfs.items():
+        df.to_csv(f"{csv_file_dir}{'Enable' if function_output_cache_enable else 'Disable'}FuncCache-{df_name}.csv")
+    print(len(dfs))
+
+
+if __name__ == '__main__':
+    for i in ["cache", "normal"]:
+        main(i)

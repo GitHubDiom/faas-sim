@@ -87,26 +87,28 @@ def main(model):
     result = sim.run()
 
     dfs = {
-        "invocations_df": sim.env.metrics.extract_dataframe('invocations'),
-        "scale_df": sim.env.metrics.extract_dataframe('scale'),
-        "schedule_df": sim.env.metrics.extract_dataframe('schedule'),
-        "replica_deployment_df": sim.env.metrics.extract_dataframe('replica_deployment'),
-        "function_deployments_df": sim.env.metrics.extract_dataframe('function_deployments'),
-        "function_deployment_df": sim.env.metrics.extract_dataframe('function_deployment'),
-        "function_deployment_lifecycle_df": sim.env.metrics.extract_dataframe('function_deployment_lifecycle'),
-        "functions_df": sim.env.metrics.extract_dataframe('functions'),
-        "flow_df": sim.env.metrics.extract_dataframe('flow'),
-        "network_df": sim.env.metrics.extract_dataframe('network'),
-        "utilization_df": sim.env.metrics.extract_dataframe('utilization'),
-        'fets_df': sim.env.metrics.extract_dataframe('fets'),
-        "cache_df": sim.env.metrics.extract_dataframe("funcOutPutDataCache")
+        "invocations": sim.env.metrics.extract_dataframe('invocations'),
+        "scale": sim.env.metrics.extract_dataframe('scale'),
+        "schedule": sim.env.metrics.extract_dataframe('schedule'),
+        "replica_deployment": sim.env.metrics.extract_dataframe('replica_deployment'),
+        "function_deployments": sim.env.metrics.extract_dataframe('function_deployments'),
+        "function_deployment": sim.env.metrics.extract_dataframe('function_deployment'),
+        "function_deployment_lifecycle": sim.env.metrics.extract_dataframe('function_deployment_lifecycle'),
+        "functions": sim.env.metrics.extract_dataframe('functions'),
+        "flow": sim.env.metrics.extract_dataframe('flow'),
+        "network": sim.env.metrics.extract_dataframe('network'),
+        "utilization": sim.env.metrics.extract_dataframe('utilization'),
+        'fets': sim.env.metrics.extract_dataframe('fets'),
+        "cache": sim.env.metrics.extract_dataframe("funcOutPutDataCache")
     }
 
     csv_file_dir = '/tmp/faas_sim/'
     if not os.path.exists(csv_file_dir):
         os.mkdir(csv_file_dir)
     for df_name, df in dfs.items():
-        df.to_csv(f"{csv_file_dir}{'Enable' if function_output_cache_enable else 'Disable'}FuncCache-{df_name}.csv")
+        file_name = f"{csv_file_dir}{'Enable' if function_output_cache_enable else 'Disable'}FuncCache-{df_name}"
+        print("saving ", file_name)
+        df.to_csv(f"{file_name}.csv")
     print(len(dfs))
 
 

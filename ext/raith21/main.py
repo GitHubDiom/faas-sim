@@ -33,9 +33,10 @@ from sim.skippy import SimulationClusterContext
 def main(model):
     np.random.seed(1234)
     random.seed(1234)
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.INFO,
                         filemode='w',
-                        filename='/tmp/faas_sim/log_raith21.log')
+                        filename='log_raith21.log'
+                        )
 
     num_devices = 100
     devices = generate_devices(num_devices, cloudcpu_settings)
@@ -102,7 +103,7 @@ def main(model):
         "cache": sim.env.metrics.extract_dataframe("funcOutPutDataCache")
     }
 
-    csv_file_dir = '/tmp/faas_sim/'
+    csv_file_dir = 'results/'
     if not os.path.exists(csv_file_dir):
         os.mkdir(csv_file_dir)
     for df_name, df in dfs.items():
